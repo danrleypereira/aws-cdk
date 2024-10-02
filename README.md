@@ -108,3 +108,9 @@ For enhanced security, assign each Lambda function only the permissions it requi
 ### 4. **Configure AWS X-Ray for Tracing**
 
 Integrate AWS X-Ray with your Lambda functions and API Gateway to trace requests and debug performance bottlenecks. This can help identify slow operations in the API lifecycle.
+
+### 5. Next Steps for Monitoring and Alerts:
+
+- Add SNS Notifications: You can connect your CloudWatch alarms to SNS (Simple Notification Service) topics to send email or SMS alerts when thresholds are breached.
+- Advanced Metrics: Set up more granular metrics such as invocation counts, throttling, and custom application metrics for detailed monitoring.
+- CloudWatch Dashboards: You can also create dashboards that provide real-time insights into Lambda execution, error rates, and DynamoDB usage, all from a single view.

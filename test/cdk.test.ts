@@ -1,17 +1,37 @@
-import * as cdk from 'aws-cdk-lib';
-import { Template, Match } from 'aws-cdk-lib/assertions';
-import * as Cdk from '../lib/cdk-stack';
+import * as cdk from "aws-cdk-lib";
+import { Template, Match } from "aws-cdk-lib/assertions";
+import * as Cdk from "../lib/cdk-stack";
 
-test('SQS Queue and SNS Topic Created', () => {
+test("DynamoDB Table Created", () => {
   const app = new cdk.App();
-  // WHEN
-  const stack = new Cdk.CdkStack(app, 'MyTestStack');
-  // THEN
-
+  const stack = new Cdk.CdkStack(app, "MyTestStack");
   const template = Template.fromStack(stack);
 
-  template.hasResourceProperties('AWS::SQS::Queue', {
-    VisibilityTimeout: 300
+  template.hasResourceProperties("AWS::DynamoDB::Table", {
+    KeySchema: Match.arrayWith([
+      Match.objectLike({
+        AttributeName: "customerId",
+        KeyType: "HASH",
+      }),
+    ]),
   });
-  template.resourceCountIs('AWS::SNS::Topic', 1);
+});
+
+test("Lambda Functions Created", () => {
+  const app = new cdk.App();
+  const stack = new Cdk.CdkStack(app, "MyTestStack");
+  const template = Template.fromStack(stack);
+
+  // 5 to account for the TableViewer Lambda
+  template.resourceCountIs("AWS::Lambda::Function", 5);
+});
+
+test("API Gateway Created", () => {
+  const app = new cdk.App();
+  const stack = new Cdk.CdkStack(app, "MyTestStack");
+  const template = Template.fromStack(stack);
+
+  template.hasResourceProperties("AWS::ApiGateway::RestApi", {
+    Name: "Customer Service",
+  });
 });

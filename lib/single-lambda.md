@@ -1,3 +1,4 @@
+```typescript
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
 
@@ -54,3 +55,4 @@ const deleteCustomer = async (
   // Handle the delete logic
   return { statusCode: 200, body: "Customer deleted!" };
 };
+```
