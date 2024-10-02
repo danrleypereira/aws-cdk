@@ -1,5 +1,11 @@
 import { Stack, StackProps } from "aws-cdk-lib";
-import { LambdaRestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
+import {
+  LambdaRestApi,
+  LambdaRestApiProps,
+  LambdaIntegration,
+  MethodOptions,
+  JsonSchemaType,
+} from "aws-cdk-lib/aws-apigateway";
 import { Construct } from "constructs";
 import { CustomerHandler } from "./customer";
 import { TableViewer } from "cdk-dynamo-table-viewer";
@@ -12,15 +18,74 @@ export class CdkStack extends Stack {
     // Create customer handler (manages DynamoDB and Lambdas)
     const customerHandler = new CustomerHandler(this, "CustomerHandler");
 
-    // API Gateway to expose Lambda functions as RESTful endpoints (Set proxy to false)
-    const api = new LambdaRestApi(this, "CustomerApi", {
+    const lambdaRestApiProps: LambdaRestApiProps = {
       restApiName: "Customer Service",
       description: "This service handles customer operations.",
-      handler: customerHandler.createCustomerLambda, // Default handler for POST (Create)
-      proxy: false, // Disables the proxy mode to allow resource-based integration
+      proxy: false, // Enable resource-level routing
+      handler: customerHandler.createCustomerLambda,
+    };
+    // API Gateway to expose Lambda functions as RESTful endpoints (Set proxy to false)
+    const api = new LambdaRestApi(this, "CustomerApi", lambdaRestApiProps);
+
+    // Define request and response schemas
+    const requestModel = api.addModel("CustomerRequestModel", {
+      contentType: "application/json",
+      schema: {
+        type: JsonSchemaType.OBJECT,
+        properties: {
+          name: { type: JsonSchemaType.STRING },
+          email: { type: JsonSchemaType.STRING },
+          active: { type: JsonSchemaType.BOOLEAN },
+          birthdate: { type: JsonSchemaType.STRING },
+          addressList: {
+            type: JsonSchemaType.ARRAY,
+            items: { type: JsonSchemaType.STRING },
+          },
+          contactInfoList: {
+            type: JsonSchemaType.ARRAY,
+            items: {
+              type: JsonSchemaType.OBJECT,
+              properties: {
+                email: { type: JsonSchemaType.STRING },
+                phone: { type: JsonSchemaType.STRING },
+              },
+            },
+          },
+        },
+        required: ["name", "email"],
+      },
     });
 
-    // Create Lambda integrations for the CRUD operations
+    const responseModel = api.addModel("CustomerResponseModel", {
+      contentType: "application/json",
+      schema: {
+        type: JsonSchemaType.OBJECT,
+        properties: {
+          message: { type: JsonSchemaType.STRING },
+          customerId: { type: JsonSchemaType.STRING },
+          updatedCustomer: { type: JsonSchemaType.OBJECT },
+        },
+      },
+    });
+
+    const methodOptions: MethodOptions = {
+      requestModels: {
+        "application/json": requestModel,
+      },
+      methodResponses: [
+        {
+          statusCode: "200",
+          responseModels: {
+            "application/json": responseModel,
+          },
+          responseParameters: {
+            "method.response.header.Access-Control-Allow-Origin": true,
+          },
+        },
+      ],
+    };
+
+    // Define Lambda integrations and apply request/response validation
     const createCustomerIntegration = new LambdaIntegration(
       customerHandler.createCustomerLambda
     );
@@ -34,14 +99,22 @@ export class CdkStack extends Stack {
       customerHandler.deleteCustomerLambda
     );
 
-    // Define resources and methods for CRUD operations
+    // Create customer resource and apply CRUD methods
     const customerResource = api.root.addResource("customer");
-    customerResource.addMethod("POST", createCustomerIntegration); // Create
-    customerResource.addMethod("GET", readCustomerIntegration); // Read
+    customerResource.addMethod(
+      "POST",
+      createCustomerIntegration,
+      methodOptions
+    );
+    customerResource.addMethod("GET", readCustomerIntegration);
 
     const customerIdResource = customerResource.addResource("{customerId}");
-    customerIdResource.addMethod("PUT", updateCustomerIntegration); // Update
-    customerIdResource.addMethod("DELETE", deleteCustomerIntegration); // Delete
+    customerIdResource.addMethod(
+      "PUT",
+      updateCustomerIntegration,
+      methodOptions
+    );
+    customerIdResource.addMethod("DELETE", deleteCustomerIntegration);
 
     // Register DynamoDB table with TableViewer
     new TableViewer(this, "ViewCustomerTable", {
