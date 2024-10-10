@@ -1,20 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDB, UpdateItemCommandInput } from "@aws-sdk/client-dynamodb";
-
-interface ContactInfo {
-  email: string;
-  phone: string;
-}
-
-interface Customer {
-  customerId: string;
-  name?: string;
-  email?: string;
-  active?: boolean;
-  birthdate?: string;
-  addressList?: string[];
-  contactInfoList?: ContactInfo[];
-}
+import { Customer } from "../../models/";
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -32,6 +18,31 @@ export const handler = async (
   let body: Customer;
   try {
     body = JSON.parse(event.body || "{}") as Customer;
+
+    // Check if contactInfoList exists and has at least one contact
+    if (!body.contactInfoList || body.contactInfoList.length === 0) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message: "Contact list cannot be empty.",
+        }),
+      };
+    }
+
+    // Check if at least one contact is marked as primary
+    const hasPrimaryContact = body.contactInfoList.some(
+      (contact) => contact.isPrimary
+    );
+
+    if (!hasPrimaryContact) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message:
+            "At least one contact must be marked as primary (isPrimary: true).",
+        }),
+      };
+    }
   } catch (error) {
     return {
       statusCode: 400,
@@ -39,7 +50,7 @@ export const handler = async (
     };
   }
 
-  // Prepare the update expression and attribute values
+  // Prepare update expressions and attribute values
   const updateExpressions: string[] = [];
   const expressionAttributeValues: { [key: string]: any } = {};
 
@@ -72,6 +83,7 @@ export const handler = async (
         M: {
           email: { S: contact.email },
           phone: { S: contact.phone },
+          isPrimary: { BOOL: contact.isPrimary },
         },
       })),
     };
@@ -91,16 +103,20 @@ export const handler = async (
     },
     UpdateExpression: `SET ${updateExpressions.join(", ")}`,
     ExpressionAttributeValues: expressionAttributeValues,
-    ReturnValues: "ALL_NEW", // Return the updated item
+    ReturnValues: "ALL_NEW", // Ensure that updated attributes are returned
   };
 
   try {
     const result = await dynamo.updateItem(params);
+
+    // Check if Attributes were returned
+    const updatedCustomer = result.Attributes || {}; // Fallback to an empty object if undefined
+
     return {
       statusCode: 200,
       body: JSON.stringify({
         message: "Customer updated successfully",
-        updatedCustomer: result.Attributes,
+        updatedCustomer,
       }),
     };
   } catch (error) {

@@ -1,15 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDB, PutItemCommandInput } from "@aws-sdk/client-dynamodb";
-
-interface Customer {
-  customerId: string;
-  name: string;
-  email: string;
-  active: boolean;
-  birthdate: string;
-  addressList: string[];
-  contactInfoList: Array<{ email: string; phone: string }>;
-}
+import { Customer } from "../../models/";
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -19,6 +10,30 @@ export const handler = async (
 
   try {
     body = JSON.parse(event.body || "{}") as Customer;
+
+    // Check if contactInfoList exists and has at least one contact
+    if (!body.contactInfoList || body.contactInfoList.length === 0) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message: "Contact list cannot be empty.",
+        }),
+      };
+    }
+
+    // Check if at least one contact is marked as primary
+    const hasPrimaryContact = body.contactInfoList.some(
+      (contact) => contact.isPrimary
+    );
+    if (!hasPrimaryContact) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message:
+            "At least one contact must be marked as primary (isPrimary: true).",
+        }),
+      };
+    }
   } catch (error) {
     return {
       statusCode: 400,
@@ -40,6 +55,7 @@ export const handler = async (
           M: {
             email: { S: info.email },
             phone: { S: info.phone },
+            isPrimary: { BOOL: info.isPrimary },
           },
         })),
       },

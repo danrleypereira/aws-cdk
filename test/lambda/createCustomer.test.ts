@@ -12,7 +12,7 @@ describe("createCustomer Lambda Function", () => {
     dynamoMock.reset();
   });
 
-  it("should successfully create a customer", async () => {
+  it("should successfully create a customer with a primary contact", async () => {
     // Mock a successful DynamoDB response
     dynamoMock.on(PutItemCommand).resolves({});
 
@@ -25,15 +25,40 @@ describe("createCustomer Lambda Function", () => {
         active: true,
         birthdate: "1990-01-01",
         addressList: ["123 Main St"],
-        contactInfoList: [{ email: "contact@example.com", phone: "555-5555" }],
+        contactInfoList: [
+          { email: "contact@example.com", phone: "555-5555", isPrimary: true },
+        ],
       }),
-      // Other required fields...
     } as any;
 
     const result = await handler(event);
 
     expect(result.statusCode).toBe(201);
     expect(result.body).toContain("Customer created successfully");
+  });
+
+  it("should return a 400 error if no contact is marked as primary", async () => {
+    const event: APIGatewayProxyEvent = {
+      httpMethod: "POST",
+      body: JSON.stringify({
+        customerId: "123",
+        name: "John Doe",
+        email: "john.doe@example.com",
+        active: true,
+        birthdate: "1990-01-01",
+        addressList: ["123 Main St"],
+        contactInfoList: [
+          { email: "contact@example.com", phone: "555-5555", isPrimary: false },
+        ],
+      }),
+    } as any;
+
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(400);
+    expect(result.body).toContain(
+      "At least one contact must be marked as primary"
+    );
   });
 
   it("should return a 400 error if body is invalid", async () => {
